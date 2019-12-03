@@ -1,6 +1,8 @@
 package executor
 
 import (
+	"sync"
+
 	"github.com/33cn/chain33/client"
 	"github.com/33cn/chain33/common/db"
 	"github.com/33cn/chain33/queue"
@@ -12,6 +14,7 @@ import (
 //数据的get set 主要经过 cache
 //如果需要进行list, 那么把get set 的内容加入到 后端数据库
 type LocalDB struct {
+	lck          sync.Mutex
 	cache        map[string][]byte
 	txcache      map[string][]byte
 	keys         []string
@@ -45,21 +48,33 @@ func NewLocalDB(cli queue.Client) db.KVDB {
 
 //DisableRead 禁止读取LocalDB数据库
 func (l *LocalDB) DisableRead() {
+	l.lck.Lock()
+	defer l.lck.Unlock()
+
 	l.disableread = true
 }
 
 //DisableWrite 禁止写LocalDB数据库
 func (l *LocalDB) DisableWrite() {
+	l.lck.Lock()
+	defer l.lck.Unlock()
+
 	l.disablewrite = true
 }
 
 //EnableRead 启动读取LocalDB数据库
 func (l *LocalDB) EnableRead() {
+	l.lck.Lock()
+	defer l.lck.Unlock()
+
 	l.disableread = false
 }
 
 //EnableWrite 启动写LocalDB数据库
 func (l *LocalDB) EnableWrite() {
+	l.lck.Lock()
+	defer l.lck.Unlock()
+
 	l.disablewrite = false
 }
 
@@ -77,11 +92,17 @@ func (l *LocalDB) StartTx() {
 
 // GetSetKeys  get state db set keys
 func (l *LocalDB) GetSetKeys() (keys []string) {
+	l.lck.Lock()
+	defer l.lck.Unlock()
+
 	return l.keys
 }
 
 //Begin 开始一个事务
 func (l *LocalDB) Begin() {
+	l.lck.Lock()
+	defer l.lck.Unlock()
+
 	l.intx = true
 	l.keys = nil
 	l.txcache = nil
@@ -115,6 +136,9 @@ func (l *LocalDB) save() error {
 
 //Commit 提交一个事务
 func (l *LocalDB) Commit() error {
+	l.lck.Lock()
+	defer l.lck.Unlock()
+
 	for k, v := range l.txcache {
 		l.cache[k] = v
 	}
@@ -131,6 +155,9 @@ func (l *LocalDB) Commit() error {
 
 //Close 提交一个事务
 func (l *LocalDB) Close() error {
+	l.lck.Lock()
+	defer l.lck.Unlock()
+
 	l.cache = nil
 	l.resetTx()
 	err := l.api.LocalClose(l.txid)
@@ -139,6 +166,9 @@ func (l *LocalDB) Close() error {
 
 //Rollback 回滚修改
 func (l *LocalDB) Rollback() {
+	l.lck.Lock()
+	defer l.lck.Unlock()
+
 	if l.hasbegin {
 		err := l.api.LocalRollback(l.txid)
 		if err != nil {
@@ -150,6 +180,9 @@ func (l *LocalDB) Rollback() {
 
 //Get 获取key
 func (l *LocalDB) Get(key []byte) ([]byte, error) {
+	l.lck.Lock()
+	defer l.lck.Unlock()
+
 	if l.disableread {
 		return nil, types.ErrDisableRead
 	}
@@ -185,6 +218,9 @@ func (l *LocalDB) Get(key []byte) ([]byte, error) {
 
 //Set 获取key
 func (l *LocalDB) Set(key []byte, value []byte) error {
+	l.lck.Lock()
+	defer l.lck.Unlock()
+
 	if l.disablewrite {
 		return types.ErrDisableWrite
 	}
@@ -204,6 +240,9 @@ func (l *LocalDB) Set(key []byte, value []byte) error {
 
 // List 从数据库中查询数据列表
 func (l *LocalDB) List(prefix, key []byte, count, direction int32) ([][]byte, error) {
+	l.lck.Lock()
+	defer l.lck.Unlock()
+
 	if l.disableread {
 		return nil, types.ErrDisableRead
 	}
