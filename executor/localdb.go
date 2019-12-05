@@ -201,6 +201,7 @@ func (l *LocalDB) Get(key []byte) ([]byte, error) {
 	query := &types.LocalDBGet{Txid: l.txid.Data, Keys: [][]byte{key}}
 	resp, err := l.api.LocalGet(query)
 	if err != nil {
+		elog.Error("LocalDB get", "key", skey, "err", err.Error())
 		panic(err) //no happen for ever
 	}
 	if nil == resp.Values {
